@@ -1,0 +1,73 @@
+#version 400 core
+
+in vec3 in_positionOS;
+
+uniform mat4 u_transformationMatrix;
+uniform mat4 u_viewMatrix;
+uniform mat4 u_projectionMatrix;
+
+uniform sampler2DArray u_waveDisplacements;
+uniform float u_textureResolution;
+uniform float u_texelSizes[7];
+
+uniform float u_lodScales[7];
+
+uniform int u_lodIndex = 0;
+
+uniform float u_fogDensity = 0.015;
+uniform float u_fogGradient = 1.5;
+
+out VertexData {
+	vec2 worldXZUndisplaced;
+	vec3 cameraPos;
+	vec3 worldPos;
+	float lodAlpha;
+	float visibility;
+} o;
+
+vec3 WorldToUV(in vec2 i_worldPos, in int i_lodIndex) {
+	vec2 uv = (i_worldPos + vec2(0, 0)) / (u_texelSizes[i_lodIndex] * u_textureResolution) + 0.5;
+	
+	return vec3(uv.xy, i_lodIndex);
+}
+
+vec4 SampleDisplacementsHelper(in vec3 i_uv_slice, in float i_weight) {
+	return texture(u_waveDisplacements, i_uv_slice) * i_weight;
+}
+
+vec4 ComputeDisplacementsData(in vec3 worldPosition) {
+	vec3 currentLOD_uv_slice = WorldToUV(worldPosition.xz, u_lodIndex);
+	vec3 nextLOD_uv_slice = WorldToUV(worldPosition.xz, u_lodIndex+1);
+	
+	vec4 data = SampleDisplacementsHelper(currentLOD_uv_slice, o.lodAlpha);
+	data += SampleDisplacementsHelper(nextLOD_uv_slice, 1 - o.lodAlpha);
+	
+	return data;
+}
+
+float CalculateLODAlpha(in vec2 worldXZ) {
+	float toEdge = max(abs(worldXZ.x), abs(worldXZ.y));
+	
+	return 2.0 - toEdge / u_lodScales[u_lodIndex];
+}
+
+void main(void) {
+	vec4 worldPosUndisplaced = (u_transformationMatrix * vec4(in_positionOS, 1));
+	
+	o.cameraPos = (inverse(u_viewMatrix) * vec4(0, 0, 0, 1)).xyz;
+	o.worldXZUndisplaced = worldPosUndisplaced.xz;
+	o.worldPos = worldPosUndisplaced.xyz;
+
+	o.lodAlpha = CalculateLODAlpha(worldPosUndisplaced.xz);
+
+	vec4 data = ComputeDisplacementsData(worldPosUndisplaced.xyz);
+	o.worldPos += data.xyz;
+
+	vec4 positionRelativeToCamera = u_viewMatrix * vec4(o.worldPos, 1);
+
+	float distanceFromCamera = length(positionRelativeToCamera);
+	o.visibility = exp(-pow(distanceFromCamera * u_fogDensity, u_fogGradient));
+	o.visibility = clamp(o.visibility, 0.0, 1.0);
+
+	gl_Position = u_projectionMatrix * positionRelativeToCamera;
+}

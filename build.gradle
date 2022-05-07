@@ -1,0 +1,78 @@
+plugins {
+    id 'java'
+//    id 'org.lwjgl.plugin' version '0.0.20'
+}
+
+group 'org.example'
+version '1.0-SNAPSHOT'
+
+//def lwjglVersion = "3.3.0"
+//def lwjglNatives = "natives-windows"
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+//    implementation 'org.lwjgl:lwjgl:3.2.1'
+//    implementation 'org.lwjgl:lwjgl-opengl:3.3.1'
+//    implementation 'org.lwjgl:lwjgl-opencl:3.3.1'
+//    implementation 'org.lwjgl:lwjgl-glfw:3.3.1'
+//    implementation 'org.lwjgl:lwjgl-stb:3.3.1'
+
+//    Lwjgl { implementation(Preset.everything) }
+//
+//    implementation 'org.joml:joml:1.10.4'
+
+//    implementation(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
+//
+//    implementation("org.lwjgl", "lwjgl")
+//    implementation("org.lwjgl", "lwjgl-glfw")
+//    implementation("org.lwjgl", "lwjgl-opencl")
+//    implementation("org.lwjgl", "lwjgl-opengl")
+//
+//    runtimeOnly("org.lwjgl", "lwjgl", classifier = lwjglNatives)
+//    runtimeOnly("org.lwjgl", "lwjgl-glfw", classifier = lwjglNatives)
+//    runtimeOnly("org.lwjgl", "lwjgl-opengl", classifier = lwjglNatives)
+
+//    compile group: 'org.joml', name: 'joml', version: '1.10.4'
+//    compile group: 'org.lwjgl', name: 'lwjgl', version: '3.3.0'
+//    compile group: 'org.lwjgl', name: 'lwjgl-glfw', version: '3.3.0'
+//    compile group: 'org.lwjgl', name: 'lwjgl-opengl', version: '3.3.0'
+//    compile group: 'org.lwjgl', name: 'lwjgl-stb', version: '3.3.0'
+//
+//    compile group: 'org.lwjgl', name: 'lwjgl', version: '3.3.0', classifier: 'natives-windows'
+//    compile group: 'org.lwjgl', name: 'lwjgl-opengl', version: '3.3.0', classifier: 'natives-windows'
+//    compile group: 'org.lwjgl', name: 'lwjgl-glfw', version: '3.3.0', classifier: 'natives-windows'
+//    compile group: 'org.lwjgl', name: 'lwjgl-stb', version: '3.3.0', classifier: 'natives-windows'
+
+    implementation group: 'org.joml', name: 'joml', version: '1.10.4'
+    implementation group: 'org.lwjgl', name: 'lwjgl', version: '3.3.0'
+    implementation group: 'org.lwjgl', name: 'lwjgl-glfw', version: '3.3.0'
+    implementation group: 'org.lwjgl', name: 'lwjgl-opengl', version: '3.3.0'
+    implementation group: 'org.lwjgl', name: 'lwjgl-opencl', version: '3.3.0'
+    implementation group: 'org.lwjgl', name: 'lwjgl-stb', version: '3.3.0'
+
+    runtimeOnly group: 'org.lwjgl', name: 'lwjgl', version: '3.3.0', classifier: 'natives-macos'
+    runtimeOnly group: 'org.lwjgl', name: 'lwjgl-opengl', version: '3.3.0', classifier: 'natives-macos'
+    runtimeOnly group: 'org.lwjgl', name: 'lwjgl-glfw', version: '3.3.0', classifier: 'natives-macos'
+    runtimeOnly group: 'org.lwjgl', name: 'lwjgl-stb', version: '3.3.0', classifier: 'natives-macos'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ["src/main/java", "src/main/resources"]
+        }
+    }
+}

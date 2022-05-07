@@ -1,0 +1,35 @@
+float4 WorldToUV(float2 worldPos, int textureResolution, global const float* texelSizes, int lodIndex);
+float2 UVToWorld(float2 uv, int textureResolution, global const float* texelSizes, int lodIndex);
+
+float4 WorldToUV(float2 worldPos, int textureResolution, global const float* texelSizes, int lodIndex) {
+	float2 uv = worldPos / (texelSizes[lodIndex] * textureResolution) + (float2) (0.5);
+	
+	return (float4) (uv.x, uv.y, (float) lodIndex, 0);
+}
+
+float2 UVToWorld(float2 uv, int textureResolution, global const float* texelSizes, int lodIndex) {
+	return texelSizes[lodIndex] * textureResolution * (uv - (float2) (0.5));
+}
+
+__kernel void combine(__read_write image2d_array_t waveBuffers, int textureResolution, global const float* texelSizes, int lodIndex) {
+	const sampler_t samplerNearest = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+	const sampler_t samplerLinear = CLK_NORMALIZED_COORDS_TRUE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_LINEAR;
+	
+	int x = get_global_id(0); 
+	int y = get_global_id(1);
+	
+	int4 current_coords = (int4) (x, y, lodIndex, 0);
+	
+	float2 current_uv = (float2) ((float) x / textureResolution, (float) y / textureResolution);
+	
+	float2 worldPos = UVToWorld(current_uv, textureResolution, texelSizes, lodIndex);
+	
+	float4 next_coords = WorldToUV(worldPos, textureResolution, texelSizes, lodIndex+1);
+	
+	float4 current_data = read_imagef(waveBuffers, samplerNearest, current_coords);
+	float4 next_data = read_imagef(waveBuffers, samplerLinear, next_coords);
+	
+	float4 combined_data = current_data + next_data;
+	
+	write_imagef(waveBuffers, current_coords, combined_data);
+}

@@ -1,0 +1,16 @@
+#version 400 core
+
+in vec3 in_positionOS;
+
+uniform mat4 u_viewMatrix;
+uniform mat4 u_projectionMatrix;
+
+out VertexData {
+	vec3 uvs;
+} o;
+
+void main(void) {
+	mat4 rotationMatrix = mat4(mat3(u_viewMatrix));
+	gl_Position = u_projectionMatrix * rotationMatrix * vec4(in_positionOS.xyz, 1.0);
+	o.uvs = in_positionOS;
+}

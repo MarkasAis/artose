@@ -1,0 +1,24 @@
+#version 400 core
+
+in vec3 in_positionOS;
+in vec2 in_uv;
+
+uniform float u_textureResolution;
+uniform float u_texelSizes[7];
+uniform int u_lodIndex;
+
+out VertexData {
+	vec2 worldPos;
+	vec2 uv;
+} o;
+
+vec2 UVToWorld(in vec2 i_uv) {
+	return u_textureResolution * u_texelSizes[u_lodIndex] * (i_uv - 0.5);
+}
+
+void main(void) {
+	gl_Position = vec4(in_positionOS.xy, 0.0, 1);
+
+	o.worldPos = UVToWorld(in_uv);
+	o.uv = in_uv;
+}

@@ -1,0 +1,142 @@
+#version 400 core
+
+in VertexData {
+	vec2 worldXZUndisplaced;
+	vec3 cameraPos;
+	vec3 worldPos;
+	float lodAlpha;
+	float visibility;
+} i;
+
+uniform float u_textureResolution;
+uniform float u_texelSizes[7];
+
+uniform sampler2DArray u_waveDisplacements;
+
+uniform int u_lodIndex = 0;
+
+uniform vec3 u_diffuse = vec3(24./255, 28./255, 37./255);
+uniform vec3 u_diffuseGrazing = vec3(51./255, 13./255, 13./255);
+
+uniform vec3 u_subsurfaceColor = vec3(26./255, 146./255, 134./255);
+uniform float u_subsurfaceBase = 0.5;
+uniform float u_subsurfaceSun = 1.5;
+uniform float u_subsurfaceSunFallOff = 19.7;
+
+uniform float u_specularity = 1;
+uniform float u_fresnel = 1;
+
+uniform vec3 u_lightDirection = vec3(0.0, -0.05234, 0.9986);
+
+uniform vec3 u_fogColor = vec3(24./255, 28./255, 37./255);
+
+uniform samplerCube u_reflectionCube;
+uniform bool u_useCustomReflections = false;
+uniform vec3 u_customBaseColor = vec3(9./255, 21./255, 36./255);
+uniform vec3 u_customLightColor = vec3(160./255, 169./255, 191./255);
+uniform vec3 u_customShadowColor = vec3(1./255, 3./255, 10./255);
+uniform float u_customLightRadiality = 0.01;
+
+const float c_refractiveIndexOfAir = 1;
+const float c_refractiveIndexOfWater = 1.333;
+
+out vec4 out_Color;
+
+vec3 WorldToUV(in vec2 i_worldPos, in int i_lodIndex) {
+	vec2 uv = (i_worldPos + vec2(0, 0)) / (u_texelSizes[i_lodIndex] * u_textureResolution) + 0.5;
+	
+	return vec3(uv.xy, i_lodIndex);
+}
+
+vec3 ComputeDisplacementsHelper(in vec3 i_uv_lodIndex, in float i_weight) {
+	vec4 data = texture(u_waveDisplacements, i_uv_lodIndex);
+	vec3 displacement = data.xyz;
+	
+	vec3 delta = vec3(1/u_textureResolution, 0.0, u_texelSizes[int(i_uv_lodIndex.z)]);
+	vec3 displacementX = vec3(delta.zyy + texture(u_waveDisplacements, i_uv_lodIndex + vec3(delta.xy, 0.0)).xyz);
+	vec3 displacementZ = vec3(delta.yyz + texture(u_waveDisplacements, i_uv_lodIndex + vec3(delta.yx, 0.0)).xyz);
+	vec3 normal = normalize(cross(displacementZ - displacement, displacementX - displacement));
+	
+	return vec3(normal.xz, data.a) * i_weight;
+}
+vec4 ComputeDisplacementsData() {
+	vec3 current_uv_slice = WorldToUV(i.worldXZUndisplaced.xy, u_lodIndex);
+	vec3 next_uv_slice = WorldToUV(i.worldXZUndisplaced.xy, u_lodIndex+1);
+	
+	vec3 data = ComputeDisplacementsHelper(current_uv_slice, i.lodAlpha);
+	if (u_lodIndex < 6) data += ComputeDisplacementsHelper(next_uv_slice, 1.0 - i.lodAlpha);
+	
+	vec3 normal = vec3(data.x, 1, data.y);
+	normal = normalize(normal);
+	
+	return vec4(normal, data.z);
+}
+
+vec3 ComputeDiffuseColor(in vec3 i_view) {
+	return mix(u_diffuse, u_diffuseGrazing, 1. - pow(abs(i_view.y), 1.0));
+}
+
+void ApplySubsurfaceScattering(in vec3 i_view, in float subsurface, inout vec3 io_color) {
+	float towardsSun = pow(max(0.0, dot(u_lightDirection, -i_view)), u_subsurfaceSunFallOff);
+	vec3 subsurfaceColor = (u_subsurfaceBase + u_subsurfaceSun * towardsSun) * u_subsurfaceColor.xyz;
+	subsurfaceColor *= (1.0 - i_view.y*i_view.y) * subsurface;
+	
+	io_color += subsurfaceColor;
+}
+
+float CalculateFresnel(in float i_cosTheta) {
+	float reflectance = (c_refractiveIndexOfAir - c_refractiveIndexOfWater) / (c_refractiveIndexOfAir + c_refractiveIndexOfWater);
+	reflectance *= reflectance;
+	
+	return reflectance + (1.0 - reflectance) * pow(max(0.0, 1.0 - i_cosTheta), u_fresnel);
+}
+
+vec3 ComputeCustomReflections(in vec3 i_refl) {
+	float dp = dot(i_refl, u_lightDirection);
+
+	if (dp > 1.0 - u_customLightRadiality) {
+		dp = (dp + u_customLightRadiality - 1) / u_customLightRadiality;
+		return mix(u_customBaseColor, u_customLightColor * 4, dp); // TODO: light intensity
+	}
+
+	dp = (dp + 1.0) / (2.0 - u_customLightRadiality);
+	return mix(u_customShadowColor, u_customBaseColor, dp);
+}
+
+void ApplyReflections(in vec3 i_view, in vec3 i_n_pixel, inout vec3 io_color) {
+	vec3 reflection = reflect(-i_view, i_n_pixel);
+	reflection.y = max(0.0, reflection.y);
+	
+	vec3 skyColor;
+	
+	if (u_useCustomReflections) {
+		skyColor = ComputeCustomReflections(reflection);
+	} else {
+		skyColor = texture(u_reflectionCube, reflection).xyz;
+	}
+	
+	float fresnel = CalculateFresnel(max(dot(i_n_pixel, i_view), 0.0));
+	io_color = mix(io_color, skyColor, fresnel * u_specularity);
+}
+
+void ApplyFog(inout vec3 io_color) {
+	io_color = mix(u_fogColor, io_color, i.visibility);
+}
+
+void main(void) {
+	vec3 view = normalize(i.cameraPos - vec3(i.worldPos.x, i.worldPos.y, i.worldPos.z));
+	
+	vec4 data = ComputeDisplacementsData();
+	vec3 normal = data.xyz;
+	float subsurface = data.w;
+	
+	vec3 color = ComputeDiffuseColor(view);
+	
+	ApplySubsurfaceScattering(view, subsurface, color);
+	
+	ApplyReflections(view, normal, color);
+	
+	ApplyFog(color);
+	
+	out_Color = vec4(color, 1);
+}
