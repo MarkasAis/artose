@@ -1,0 +1,56 @@
+#version 400 core
+
+#define BATCH_SIZE 32
+
+in VertexData {
+	vec2 worldPos;
+	vec2 uv;
+} i;
+
+uniform vec4 u_twoPiOverWavelengths[BATCH_SIZE / 4];
+uniform vec4 u_amplitudes[BATCH_SIZE / 4];
+uniform vec4 u_waveDirX[BATCH_SIZE / 4];
+uniform vec4 u_waveDirZ[BATCH_SIZE / 4];
+uniform vec4 u_phases[BATCH_SIZE / 4];
+uniform vec4 u_chopAmplitudes[BATCH_SIZE / 4];
+
+out vec4 out_Color;
+
+void main(void) {
+	vec3 displacement = vec3(0.0);
+	vec2 displacementNormalized = vec2(0.0);
+	
+	// TODO: don't need to run through the whole batch, because it's padded
+	for (uint index = 0; index < BATCH_SIZE / 4; index++) {
+		vec4 directionX = u_waveDirX[index];
+		vec4 directionZ = u_waveDirZ[index];
+		
+		vec4 location = directionX * i.worldPos.x + directionZ * i.worldPos.y;
+		vec4 angle = u_twoPiOverWavelengths[index] * location + u_phases[index];
+	
+		vec4 displacementFactor = u_chopAmplitudes[index] * sin(angle);
+		vec4 displacementX = displacementFactor * directionX;
+		vec4 displacementZ = displacementFactor * directionZ;
+		vec4 displacementY = u_amplitudes[index] * cos(angle);
+	
+		displacement.x += displacementX.x + displacementX.y + displacementX.z + displacementX.w;
+		displacement.y += displacementY.x + displacementY.y + displacementY.z + displacementY.w;
+		displacement.z += displacementZ.x + displacementZ.y + displacementZ.z + displacementZ.w;
+	
+		vec4 subsurfaceFactor = min(vec4(1.0), u_twoPiOverWavelengths[index]);
+		
+		displacementNormalized.x += displacementX.x * subsurfaceFactor.x +
+								  	displacementX.y * subsurfaceFactor.y +
+								  	displacementX.z * subsurfaceFactor.z +
+								  	displacementX.w * subsurfaceFactor.w;
+								  	
+		displacementNormalized.y += displacementY.x * subsurfaceFactor.x +
+								  	displacementY.y * subsurfaceFactor.y +
+								  	displacementY.z * subsurfaceFactor.z +
+								  	displacementY.w * subsurfaceFactor.w;
+	}
+
+	float subsurface = length(displacementNormalized);
+	
+	out_Color = vec4(displacement, subsurface);
+}

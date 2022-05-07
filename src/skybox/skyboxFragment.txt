@@ -1,0 +1,15 @@
+#version 400 core
+
+in VertexData {
+	vec3 uvs;
+} i;
+
+uniform samplerCube cubemap;
+
+out vec4 out_Color;
+
+const float exposure = 1.1;
+
+void main(void) {
+	out_Color = texture(cubemap, i.uvs) * exposure;
+}
